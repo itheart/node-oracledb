@@ -2,26 +2,27 @@
 
 /******************************************************************************
  *
- * You may not use the identified files except in compliance with the Apache 
+ * You may not use the identified files except in compliance with the Apache
  * License, Version 2.0 (the "License.")
  *
- * You may obtain a copy of the License at 
+ * You may obtain a copy of the License at
  * http://www.apache.org/licenses/LICENSE-2.0.
  *
- * Unless required by applicable law or agreed to in writing, software 
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
- * See the License for the specific language governing permissions and 
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  *
  * NAME
- *   dpiUtils.cpp - ConnImpl class implementation 
+ *   dpiUtils.cpp - ConnImpl class implementation
  *
  * DESCRIPTION
  *
  *****************************************************************************/
 
+#include <stdio.h>
 #include <string.h>
 
 #ifndef DPIUTILS_ORACLE
@@ -33,8 +34,52 @@
 # include <dpiExceptionImpl.h>
 #endif
 
+#ifdef WIN32
+  #define  snprintf  _snprintf
+#endif
 
 
+/*****************************************************************************/
+/*
+   DESCRIPTION
+     Wrapper for ociCall and ociCallEnv.
+     Abstraction for the redundant common functionality.
+
+   PARAMETERS:
+     rc      - OCI return code
+     errh    - OCI error hanlde
+     errType - error type
+
+   RETURNS:
+     nothing
+
+   NOTES:
+ */
+
+static void ociCallCommon(sword rc, void *handle, ub4 errType)
+{
+  // OCI_SUCCESS_WITH_INFO - warnings are reported in some cases.
+  // Treat these warnings as success as the OCI call succeeded and
+  // ignore the error message
+  if ( (rc == OCI_SUCCESS) || (rc == OCI_SUCCESS_WITH_INFO ) )
+    return;
+
+  if (rc == OCI_INVALID_HANDLE)
+    throw ExceptionImpl(DpiOciInvalidHandle);
+
+  OraText ociErrorMsg[OCI_ERROR_MAXMSG_SIZE];
+  sb4     ociErrorNo = 0;
+  memset(ociErrorMsg, 0, OCI_ERROR_MAXMSG_SIZE);
+
+  rc = OCIErrorGet(handle, 1, NULL, &ociErrorNo, ociErrorMsg,
+                   OCI_ERROR_MAXMSG_SIZE-1, errType);
+  if (rc)
+    throw ExceptionImpl(DpiErrUnkOciError);
+  else
+  {
+    throw ExceptionImpl("ORA", ociErrorNo, (const char *)ociErrorMsg);
+  }
+}
 
 /*---------------------------------------------------------------------------
                      PUBLIC FUNCTIONS
@@ -59,22 +104,7 @@
 
 void ociCall(sword rc, OCIError *errh)
 {
-  if (!rc)
-    return;
-  
-  OraText ociErrorMsg[OCI_ERROR_MAXMSG_SIZE];
-  sb4     ociErrorNo = 0;
-  memset(ociErrorMsg, 0, OCI_ERROR_MAXMSG_SIZE);
-  
-  rc = OCIErrorGet(errh, 1, NULL, &ociErrorNo, ociErrorMsg,
-                   OCI_ERROR_MAXMSG_SIZE-1, OCI_HTYPE_ERROR);
-  if (rc)
-    throw ExceptionImpl(DpiErrUnkOciError);
-  else
-  {
-    ociErrorMsg[strlen((char*)ociErrorMsg)-1]=0; //strip off newline
-    throw ExceptionImpl("ORA", ociErrorNo, (const char *)ociErrorMsg);
-  }
+  ociCallCommon(rc, errh, OCI_HTYPE_ERROR);
 }
 
 
@@ -94,27 +124,12 @@ void ociCall(sword rc, OCIError *errh)
      nothing
 
    NOTES:
-     
+
  */
 
 void ociCallEnv(sword rc, OCIEnv *envh)
 {
-  if (!rc)
-    return;
-  
-  OraText ociErrorMsg[OCI_ERROR_MAXMSG_SIZE];
-  sb4     ociErrorNo = 0;
-  memset(ociErrorMsg, 0, OCI_ERROR_MAXMSG_SIZE);
-  
-  rc = OCIErrorGet(envh, 1, NULL, &ociErrorNo, ociErrorMsg,
-                   OCI_ERROR_MAXMSG_SIZE-1, OCI_HTYPE_ENV);
-  if (rc)
-    throw ExceptionImpl(DpiErrUnkOciError);
-  else
-  {
-    ociErrorMsg[strlen((char*)ociErrorMsg)-1]=0; //strip off newline
-    throw ExceptionImpl("ORA", ociErrorNo, (const char *)ociErrorMsg);
-  }
+  ociCallCommon(rc, envh, OCI_HTYPE_ENV);
 }
 
 

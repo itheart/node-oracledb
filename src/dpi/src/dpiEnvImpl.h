@@ -2,17 +2,17 @@
 
 /******************************************************************************
  *
- * You may not use the identified files except in compliance with the Apache 
+ * You may not use the identified files except in compliance with the Apache
  * License, Version 2.0 (the "License.")
  *
- * You may obtain a copy of the License at 
+ * You may obtain a copy of the License at
  * http://www.apache.org/licenses/LICENSE-2.0.
  *
- * Unless required by applicable law or agreed to in writing, software 
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
- * See the License for the specific language governing permissions and 
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  *
  * NAME
@@ -63,9 +63,9 @@ class EnvImpl : public Env
  public:
                                // creation/termination
   EnvImpl();
-  
+
   virtual ~EnvImpl();
-  
+
   static EnvImpl * createEnvImpl();
 
   virtual void terminate();
@@ -83,8 +83,8 @@ class EnvImpl : public Env
   virtual void poolTimeout(unsigned int poolTimeout);
   virtual unsigned int poolTimeout() const;
 
-  virtual void isExternalAuth(bool isExternalAuth);
-  virtual bool isExternalAuth() const;
+  virtual void externalAuth(bool externalAuth);
+  virtual bool externalAuth() const;
 
   virtual void isEventEnabled(bool isEventEnabled);
   virtual bool isEventEnabled() const;
@@ -92,22 +92,38 @@ class EnvImpl : public Env
                                 // interface  methods
   virtual SPool * createPool(const string &user, const string &password,
                              const string &connString,
-                             int poolMax = -1, int poolMin = -1,
-                             int poolIncrement = -1,
-                             int poolTimeout = -1,
-                             int stmtCacheSize = -1);
+                             int poolMax, int poolMin,
+                             int poolIncrement,
+                             int poolTimeout,
+                             int stmtCacheSize,
+                             bool externalAuth);
 
   virtual Conn * getConnection(const string &user, const string &password,
-                               const string &connString, int stmtCacheSize);
+                               const string &connString, int stmtCacheSize,
+                               const string &connClass,
+                               bool externalAuth);
+
 
                                 // internal methods
   virtual void terminatePool(PoolImpl *pool);
 
   virtual void releaseConnection(ConnImpl *conn);
 
-  // DateTime array.
+                                // DateTime array
   virtual DateTimeArray* getDateTimeArray ( OCIError *errh ) const ;
   virtual void           releaseDateTimeArray ( DateTimeArray *arr ) const ;
+
+  
+  virtual DpiHandle * allocHandle(HandleType handleType);
+  
+  virtual Descriptor * allocDescriptor(DescriptorType descriptorType);
+    
+  virtual void allocDescriptorArray(DescriptorType descriptorType,
+                                    unsigned int arraySize,
+                                    Descriptor *descriptorArray[]);
+  
+  virtual DpiHandle * envHandle() const;
+
 
 private:
 
@@ -121,7 +137,7 @@ private:
   unsigned int poolIncrement_;  // pool increment
   unsigned int poolTimeout_;    // pool timeout
 
-  bool         isExternalAuth_; // doing external authentication
+  bool         externalAuth_; // doing external authentication
   bool         isEventEnabled_; // EVENTS are enabled
 
   unsigned int stmtCacheSize_;  // statement cache size

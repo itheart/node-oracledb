@@ -2,17 +2,17 @@
 
 /******************************************************************************
  *
- * You may not use the identified files except in compliance with the Apache 
+ * You may not use the identified files except in compliance with the Apache
  * License, Version 2.0 (the "License.")
  *
- * You may obtain a copy of the License at 
+ * You may obtain a copy of the License at
  * http://www.apache.org/licenses/LICENSE-2.0.
  *
- * Unless required by applicable law or agreed to in writing, software 
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
- * See the License for the specific language governing permissions and 
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  *
  * NAME
@@ -28,19 +28,20 @@
 
 #include <string>
 
-#ifndef DPI_ORACLE
-# include <dpi.h>
+
+#ifndef DPICOMMON_ORACLE
+# include <dpiCommon.h>
 #endif
 
 #ifndef DPIPOOL_ORACLE
 # include <dpiPool.h>
 #endif
 
-
 #ifndef DPICONN_ORACLE
 # include <dpiConn.h>
 #endif
 
+#define DPI_AL32UTF8         873
 
 using std::string;
 
@@ -49,8 +50,13 @@ namespace dpi
 {
 
 class DateTimeArray;
-  
 
+
+/*---------------------------------------------------------------------------
+                     PUBLIC CONSTANTS
+  ---------------------------------------------------------------------------*/
+
+  
 /*---------------------------------------------------------------------------
                      PUBLIC TYPES
   ---------------------------------------------------------------------------*/
@@ -63,7 +69,7 @@ class Env
   static Env * createEnv();
 
   virtual void terminate() = 0;
-  
+
                                 // properties
   virtual void poolMax(unsigned int poolMax) = 0;
   virtual unsigned int poolMax() const = 0;
@@ -77,8 +83,9 @@ class Env
   virtual void poolTimeout(unsigned int poolTimeout) = 0;
   virtual unsigned int poolTimeout() const = 0;
 
-  virtual void isExternalAuth(bool isExternalAuth) = 0;
-  virtual bool isExternalAuth() const = 0;
+  virtual void externalAuth(bool externalAuth) = 0;
+  virtual bool externalAuth() const = 0;
+
 
                                  // methods
   virtual SPool * createPool(const string &user, const string &password,
@@ -86,23 +93,49 @@ class Env
                              int poolMax = -1, int poolMin = -1,
                              int poolIncrement = -1,
                              int poolTimeout = -1,
-                             int stmtCacheSize = -1) = 0;
+                             int stmtCacheSize = -1,
+                             bool externalAuth = false) = 0;
 
   virtual Conn * getConnection(const string &user, const string &password,
                                const string &connString,
-                               int stmtCacheSize) = 0;
+                               int stmtCacheSize,
+                               const string &connClass = "",
+                               bool externalAuth = false) = 0;
+
+                                // DateTime array
+  virtual DateTimeArray * getDateTimeArray( OCIError *errh ) const = 0;
+  virtual void            releaseDateTimeArray ( DateTimeArray *arr ) const = 0;
   
-  // DateTime array.
-  virtual DateTimeArray* getDateTimeArray( OCIError *errh ) const = 0;
-  virtual void           releaseDateTimeArray ( DateTimeArray *arr ) const = 0;
+                                 // handle and descriptor methods
+  virtual DpiHandle * allocHandle(HandleType handleType) = 0;
+  
+  static void freeHandle(DpiHandle *handle, HandleType handleType);
+  
+  
+  virtual Descriptor * allocDescriptor(DescriptorType descriptorType)
+                              = 0;
+  
+  static void freeDescriptor(Descriptor *descriptor,
+                             DescriptorType descriptorType);
+  
+  virtual void allocDescriptorArray(DescriptorType descriptorType,
+                                    unsigned int arraySize,
+                                    Descriptor **descriptorArray) = 0;
+  
+  static void freeDescriptorArray(Descriptor **descriptorArray,
+                                  DescriptorType descriptorType);
+
+  
+  virtual DpiHandle * envHandle() const = 0;
+
   
 protected:
                                 // clients cannot do new and delete
   Env();
-  
+
   virtual ~Env();
 
-  
+
 private:
 
 };

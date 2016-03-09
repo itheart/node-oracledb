@@ -2,17 +2,17 @@
 
 /******************************************************************************
  *
- * You may not use the identified files except in compliance with the Apache 
+ * You may not use the identified files except in compliance with the Apache
  * License, Version 2.0 (the "License.")
  *
- * You may obtain a copy of the License at 
+ * You may obtain a copy of the License at
  * http://www.apache.org/licenses/LICENSE-2.0.
  *
- * Unless required by applicable law or agreed to in writing, software 
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
- * See the License for the specific language governing permissions and 
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  *
  * NAME
@@ -24,6 +24,10 @@
 
 #ifndef DPICONN_ORACLE
 # define DPICONN_ORACLE
+
+#ifndef DPILOB_ORACLE
+# include <dpiLob.h>
+#endif
 
 #ifndef DPISTMT_ORACLE
 # include <dpiStmt.h>
@@ -47,8 +51,8 @@ namespace dpi
                      PUBLIC TYPES
   ---------------------------------------------------------------------------*/
 
-  
-  
+
+
 class Conn
 {
 public:
@@ -59,6 +63,11 @@ public:
                                 // properties
   virtual void stmtCacheSize(unsigned int stmtCacheSize) = 0;
   virtual unsigned int stmtCacheSize() const = 0;
+  virtual int getByteExpansionRatio () = 0;
+  virtual void setErrState ( int errNum ) = 0;
+
+  virtual void lobPrefetchSize(unsigned int lobPrefetchSize) = 0;
+  virtual unsigned int lobPrefetchSize() const = 0;
 
   virtual void clientId(const string &clientId) = 0;
 
@@ -67,20 +76,26 @@ public:
   virtual void action(const string &action) = 0;
 
                                 // methods
-  virtual Stmt* getStmt (const string &sql) = 0;
-  
+  virtual Stmt* getStmt (const string &sql="") = 0;
+
   virtual void commit() = 0;
-  
+
   virtual void rollback() = 0;
-  
+
   virtual void breakExecution() = 0;
-  
+
+  virtual DpiHandle *getSvch () = 0;
+
+  virtual DpiHandle *getErrh () = 0;
+
+  virtual unsigned int getServerVersion () = 0;
+
 protected:
                                 // clients cannot do new and delete
   Conn(){};
-  
+
   virtual ~Conn(){};
- 
+
 
 private:
 

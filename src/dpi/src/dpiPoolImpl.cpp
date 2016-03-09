@@ -2,33 +2,27 @@
 
 /******************************************************************************
  *
- * You may not use the identified files except in compliance with the Apache 
+ * You may not use the identified files except in compliance with the Apache
  * License, Version 2.0 (the "License.")
  *
- * You may obtain a copy of the License at 
+ * You may obtain a copy of the License at
  * http://www.apache.org/licenses/LICENSE-2.0.
  *
- * Unless required by applicable law or agreed to in writing, software 
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
- * See the License for the specific language governing permissions and 
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  *
  * NAME
- *   dpiPoolImpl.cpp - PoolImpl class implementation 
+ *   dpiPoolImpl.cpp - PoolImpl class implementation
  *
  * DESCRIPTION
  *   This file implements the PoolImpl class which provides the implemenation
  *   of the Pool abstract class.
  *
  *****************************************************************************/
-
-
-#ifndef ORATYPES
-# include <oratypes.h>
-#endif
-
 
 #ifndef DPIENVIMPL_ORACLE
 # include <dpiEnvImpl.h>
@@ -57,7 +51,7 @@ using namespace std;
 /*---------------------------------------------------------------------------
                            PUBLIC METHODS
   ---------------------------------------------------------------------------*/
- 
+
 
 /*****************************************************************************/
 /*
@@ -65,7 +59,7 @@ using namespace std;
      Constructor for the PoolImpl class.
 
    PARAMETERS:
-     env           - parent Environment object  
+     env           - parent Environment object
      envh          - OCI envh
      user          - userid
      password      - password
@@ -80,43 +74,52 @@ using namespace std;
      nothing
 
    NOTES:
-     
+
  */
 
-PoolImpl::PoolImpl(EnvImpl *env, OCIEnv *envh, 
+PoolImpl::PoolImpl(EnvImpl *env, OCIEnv *envh,
                    const string &user, const string &password,
                    const string &connString, int poolMax,
                    int poolMin, int poolIncrement,
-                   int poolTimeout, bool isExternalAuth, int stmtCacheSize)
-  try : env_(env), isExternalAuth_(isExternalAuth), envh_(envh), errh_(NULL),
+                   int poolTimeout, bool externalAuth, int stmtCacheSize)
+  try : env_(env), externalAuth_(externalAuth), envh_(envh), errh_(NULL),
         spoolh_(NULL), poolName_(NULL)
 {
-  unsigned int spoolMode = OCI_SPOOL_ATTRVAL_NOWAIT;
-  
-  ociCallEnv(OCIHandleAlloc((void *)envh_, (dvoid **)&errh_, 
-                            OCI_HTYPE_ERROR, 0, (dvoid **)0), envh_);
-                           
-  ociCall(OCIHandleAlloc((void *)envh_, (dvoid **)&spoolh_,
-                         OCI_HTYPE_SPOOL, 0, (dvoid **)0), errh_);
+  ub4 mode = externalAuth ? OCI_DEFAULT : OCI_SPC_HOMOGENEOUS;
+  void *errh   = NULL;
+  void *spoolh = NULL;
 
-  ociCall(OCISessionPoolCreate(envh_, errh_, spoolh_, 
+  unsigned char spoolMode = OCI_SPOOL_ATTRVAL_NOWAIT; // spoolMode is a ub1
+
+  if (externalAuth && (password.length() || user.length()))
+      throw ExceptionImpl(DpiErrExtAuth);
+
+  ociCallEnv(OCIHandleAlloc((void *)envh_, &errh,
+                            OCI_HTYPE_ERROR, 0, (dvoid **)0), envh_);
+  errh_ = ( OCIError * ) errh;
+
+  ociCall(OCIHandleAlloc((void *)envh_, (dvoid **)&spoolh,
+                         OCI_HTYPE_SPOOL, 0, (dvoid **)0), errh_);
+  spoolh_ = ( OCISPool * ) spoolh;
+
+  ociCall(OCISessionPoolCreate(envh_, errh_, spoolh_,
                                &poolName_, &poolNameLen_,
-                               (OraText *)connString.data (), 
-                               connString.length(),
+                               (OraText *)connString.data (),
+                               (ub4) connString.length(),
                                poolMin, poolMax,
-                               poolIncrement, 
-                               (OraText *)user.data (), user.length(),
+                               poolIncrement,
+                               (OraText *)user.data (), (ub4) user.length(),
                                (OraText *)password.data (),
-                               password.length(), 
-                               OCI_SPC_HOMOGENEOUS), errh_ );
+                               (ub4) password.length(),
+                               mode), errh_ );
 
   this->poolTimeout(poolTimeout);
   this->stmtCacheSize(stmtCacheSize);
-  
+
   /* In case of no free connections available, report error */
   ociCall (OCIAttrSet (spoolh_, OCI_HTYPE_SPOOL, &spoolMode,
                        sizeof (spoolMode), OCI_ATTR_SPOOL_GETMODE, errh_ ),
-           errh_ ) ;  
+           errh_ ) ;
 }
 
 catch (...)
@@ -139,7 +142,7 @@ catch (...)
      nothing
 
    NOTES:
-     
+
  */
 
 PoolImpl::~PoolImpl()
@@ -161,11 +164,16 @@ PoolImpl::~PoolImpl()
      nothing
 
    NOTES:
-     
+
  */
 
 void PoolImpl::terminate()
 {
+  if (poolName_)
+  {
+    ociCall( OCISessionPoolDestroy( spoolh_, errh_, OCI_DEFAULT), errh_);
+    poolName_ = NULL;
+  }
   env_->terminatePool(this);
 }
 
@@ -182,7 +190,7 @@ void PoolImpl::terminate()
      nothing
 
    NOTES:
-     
+
  */
 
 void PoolImpl::poolTimeout(unsigned int poolTimeout)
@@ -204,7 +212,7 @@ void PoolImpl::poolTimeout(unsigned int poolTimeout)
      nothing
 
    NOTES:
-     
+
  */
 
 void PoolImpl::stmtCacheSize(unsigned int stmtCacheSize)
@@ -228,7 +236,7 @@ void PoolImpl::stmtCacheSize(unsigned int stmtCacheSize)
      number of currently open connections
 
    NOTES:
-     
+
  */
 
 unsigned int PoolImpl::connectionsOpen() const
@@ -254,7 +262,7 @@ unsigned int PoolImpl::connectionsOpen() const
      number of currently in use (checked-out) connections
 
    NOTES:
-     
+
  */
 
 unsigned int PoolImpl::connectionsInUse() const
@@ -282,13 +290,13 @@ unsigned int PoolImpl::connectionsInUse() const
      created connection
 
    NOTES:
-     
+
  */
 
-Conn * PoolImpl::getConnection ()
+Conn * PoolImpl::getConnection ( const std::string& connClass)
 {
-  Conn *conn = new ConnImpl(this, envh_, isExternalAuth_,
-                            poolName_, poolNameLen_
+  Conn *conn = new ConnImpl(this, envh_, externalAuth_,
+                            poolName_, poolNameLen_, connClass
                             );
   return conn;
 }
@@ -307,7 +315,7 @@ Conn * PoolImpl::getConnection ()
      nothing
 
    NOTES:
-     
+
  */
 
 void PoolImpl::releaseConnection(ConnImpl *conn)
@@ -341,25 +349,25 @@ void PoolImpl::releaseConnection(ConnImpl *conn)
 
 void PoolImpl::cleanup()
 {
-
   if (poolName_)
   {
-    ociCall( OCISessionPoolDestroy( spoolh_, errh_, OCI_DEFAULT), errh_);
+    // Ignore errors thrown.
+    OCISessionPoolDestroy( spoolh_, errh_, OCI_DEFAULT);
     poolName_ = NULL;
   }
-  
+
   if (spoolh_)
   {
-    OCIHandleFree ( errh_, OCI_HTYPE_SPOOL);
+    OCIHandleFree ( spoolh_, OCI_HTYPE_SPOOL);
     spoolh_ = NULL;
-  }  
+  }
 
   if (errh_)
   {
     OCIHandleFree ( errh_, OCI_HTYPE_ERROR );
-    errh_ = NULL ;    
+    errh_ = NULL ;
   }
-  
+
 }
 
 

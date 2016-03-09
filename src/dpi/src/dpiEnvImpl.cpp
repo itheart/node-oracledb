@@ -2,32 +2,27 @@
 
 /******************************************************************************
  *
- * You may not use the identified files except in compliance with the Apache 
+ * You may not use the identified files except in compliance with the Apache
  * License, Version 2.0 (the "License.")
  *
- * You may obtain a copy of the License at 
+ * You may obtain a copy of the License at
  * http://www.apache.org/licenses/LICENSE-2.0.
  *
- * Unless required by applicable law or agreed to in writing, software 
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
- * See the License for the specific language governing permissions and 
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  *
  * NAME
- *   dpiEnvImpl.cpp - EnvImpl class implementation 
+ *   dpiEnvImpl.cpp - EnvImpl class implementation
  *
  * DESCRIPTION
  *   This file implements the EnvImpl class which provides the implemenation of
  *   the Env abstract class.
  *
  *****************************************************************************/
-
-#ifndef ORATYPES
-# include <oratypes.h>
-#endif
-
 
 #ifndef DPIENVIMPL_ORACLE
 # include <dpiEnvImpl.h>
@@ -76,7 +71,7 @@ static const int kStmtCacheSize = 60;
 /*---------------------------------------------------------------------------
                            PUBLIC METHODS
   ---------------------------------------------------------------------------*/
- 
+
 
 /*****************************************************************************/
 /*
@@ -94,14 +89,15 @@ static const int kStmtCacheSize = 60;
  */
 
 EnvImpl::EnvImpl()
- 
+
 try : envh_(NULL), poolMax_(kPoolMax), poolMin_(kPoolMin),
       poolIncrement_(kPoolIncrement), poolTimeout_(kPoolTimeout),
-      isExternalAuth_(false),  stmtCacheSize_(kStmtCacheSize) 
+      externalAuth_(false),  stmtCacheSize_(kStmtCacheSize)
 {
-      
-  sword rc = OCIEnvCreate (&envh_, OCI_THREADED, NULL, NULL, NULL,
-                           NULL, 0, NULL);
+
+  sword rc = OCIEnvNlsCreate (&envh_, OCI_THREADED | OCI_OBJECT, NULL, NULL,
+                              NULL, NULL, 0, NULL, DPI_AL32UTF8, DPI_AL32UTF8);
+
   if (rc)
   {
     if (envh_)
@@ -109,10 +105,10 @@ try : envh_(NULL), poolMax_(kPoolMax), poolMin_(kPoolMin),
     else
       throw ExceptionImpl(DpiErrNoEnv);
   }
-  
+
   DateTimeArrayImpl::initBaseDate ( envh_ ) ;
 }
-  
+
 catch (...)
 {
   cleanup();
@@ -133,7 +129,7 @@ catch (...)
      nothing
 
    NOTES:
-     
+
  */
 
 EnvImpl::~EnvImpl()
@@ -174,7 +170,7 @@ EnvImpl * EnvImpl::createEnvImpl()
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::terminate()
@@ -196,7 +192,7 @@ void EnvImpl::terminate()
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::poolMax(unsigned int poolMax)
@@ -218,7 +214,7 @@ void EnvImpl::poolMax(unsigned int poolMax)
      maximum pool size
 
    NOTES:
-     
+
  */
 
 unsigned int EnvImpl::poolMax() const
@@ -240,7 +236,7 @@ unsigned int EnvImpl::poolMax() const
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::poolMin(unsigned int poolMin)
@@ -262,7 +258,7 @@ void EnvImpl::poolMin(unsigned int poolMin)
      mainimum pool size
 
    NOTES:
-     
+
  */
 
 unsigned int EnvImpl::poolMin() const
@@ -284,7 +280,7 @@ unsigned int EnvImpl::poolMin() const
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::poolIncrement(unsigned int poolIncrement)
@@ -306,7 +302,7 @@ void EnvImpl::poolIncrement(unsigned int poolIncrement)
      pool increment
 
    NOTES:
-     
+
  */
 
 unsigned int EnvImpl::poolIncrement() const
@@ -327,7 +323,7 @@ unsigned int EnvImpl::poolIncrement() const
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::poolTimeout(unsigned int poolTimeout)
@@ -349,7 +345,7 @@ void EnvImpl::poolTimeout(unsigned int poolTimeout)
      pool timeout
 
    NOTES:
-     
+
  */
 
 unsigned int EnvImpl::poolTimeout() const
@@ -364,19 +360,19 @@ unsigned int EnvImpl::poolTimeout() const
      Specify external authentication.
 
    PARAMETERS:
-    isExternalAuth  - true if using external authentication
+    externalAuth  - true if using external authentication
                       false if not useing external authentication
 
    RETURNS:
      nothing
 
    NOTES:
-     
+
  */
 
-void EnvImpl::isExternalAuth(bool isExternalAuth)
+void EnvImpl::externalAuth(bool externalAuth)
 {
-  isExternalAuth_ = isExternalAuth;
+  externalAuth_ = externalAuth;
 }
 
 
@@ -394,12 +390,12 @@ void EnvImpl::isExternalAuth(bool isExternalAuth)
      false otherwise
 
    NOTES:
-     
+
  */
 
-bool EnvImpl::isExternalAuth() const
+bool EnvImpl::externalAuth() const
 {
-  return isExternalAuth_;
+  return externalAuth_;
 }
 
 
@@ -437,7 +433,7 @@ void EnvImpl::isEventEnabled(bool isEventEnabled)
      false otherwise
 
    NOTES:
-     
+
  */
 
 bool EnvImpl::isEventEnabled() const
@@ -463,13 +459,14 @@ bool EnvImpl::isEventEnabled() const
      created pool
 
    NOTES:
-     
+
  */
 
 SPool * EnvImpl::createPool(const string &user, const string &password,
                             const string &connString,
                             int poolMax, int poolMin, int poolIncrement,
-                            int poolTimeout, int stmtCacheSize)
+                            int poolTimeout, int stmtCacheSize,
+                            bool externalAuth)
 {
   return new PoolImpl(this, envh_, user, password, connString,
                       (poolMax == -1) ? poolMax_ : poolMax,
@@ -478,9 +475,9 @@ SPool * EnvImpl::createPool(const string &user, const string &password,
                                               poolIncrement,
                       (poolTimeout == -1) ? poolTimeout_ :
                                             poolTimeout,
-                      isExternalAuth_,
+                      externalAuth,
                       (stmtCacheSize == -1) ? stmtCacheSize_ :
-                                              stmtCacheSize);
+                      stmtCacheSize);
 }
 
 
@@ -502,13 +499,14 @@ SPool * EnvImpl::createPool(const string &user, const string &password,
 
 Conn * EnvImpl::getConnection(const string &user, const string &password,
                               const string &connString,
-                              int stmtCacheSize)
+                              int stmtCacheSize, const string &connClass,
+                              bool externalAuth)
 {
-  return (Conn *)new ConnImpl(this, envh_, isExternalAuth_,
+  return (Conn *)new ConnImpl(this, envh_, externalAuth,
                               (stmtCacheSize == -1) ? stmtCacheSize_ :
                                                       stmtCacheSize,
                               user, password,
-                              connString);
+                              connString, connClass);
 }
 
 
@@ -525,7 +523,7 @@ Conn * EnvImpl::getConnection(const string &user, const string &password,
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::terminatePool(PoolImpl *pool)
@@ -547,7 +545,7 @@ void EnvImpl::terminatePool(PoolImpl *pool)
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::releaseConnection(ConnImpl *conn)
@@ -575,7 +573,7 @@ void EnvImpl::releaseConnection(ConnImpl *conn)
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::terminateEnvImpl(EnvImpl *env)
@@ -598,7 +596,7 @@ void EnvImpl::terminateEnvImpl(EnvImpl *env)
      nothing
 
    NOTES:
-     
+
  */
 
 void EnvImpl::cleanup()
@@ -616,14 +614,14 @@ void EnvImpl::cleanup()
 /*
   NAME
     getDateTimeArray
-  
+
   DESCRIPTION
     To obtain an DPI class which represents date/timestamp as descriptor
     array
-  
+
   RETURNS:
     DateTimeArray *  -
-    
+
   NOTE:
     DatetimeArray uses error object created in StmtImpl instead of creating
     separate one, this is ok, as the date/timestamp will be part of SQL
@@ -631,7 +629,13 @@ void EnvImpl::cleanup()
 */
 DateTimeArray* EnvImpl::getDateTimeArray (OCIError *errh) const
 {
-  return new DateTimeArrayImpl ( envh_, errh, this ) ;
+
+  DateTimeArray *dtmarr = new DateTimeArrayImpl ( envh_, errh, this ) ;
+  if( !dtmarr )
+  {
+    throw ExceptionImpl ( DpiErrMemAllocFail ) ;
+  }
+  return dtmarr; 
 }
 
 
@@ -639,10 +643,10 @@ DateTimeArray* EnvImpl::getDateTimeArray (OCIError *errh) const
 /*
   NAME
     releaseDateTimeArray
-  
+
   DESCRIPTION
     To release datetimeArray object and related resources
-  
+
   RETURNS:
     NONE
 */
@@ -652,6 +656,108 @@ void EnvImpl::releaseDateTimeArray ( DateTimeArray *arr )  const
     delete arr;
 }
 
+
+
+/*****************************************************************************/
+/*
+   DESCRIPTION
+     Allocate DPI handle.
+
+   PARAMETERS:
+     handleType - Type of DPI handle to be allocated
+
+   RETURNS:
+     allocated DPI handle
+
+   NOTES:
+     
+ */
+
+DpiHandle * EnvImpl::allocHandle(HandleType handleType)
+{
+  void *handle = NULL;
+
+  ociCallEnv(OCIHandleAlloc(envh_, &handle, handleType, 0, NULL),
+             envh_);
+
+  return (DpiHandle *)handle;
+}
+
+
+
+/*****************************************************************************/
+/*
+   DESCRIPTION
+     Allocate DPI descriptor.
+
+   PARAMETERS:
+     descriptorType - Type of DPI descriptor to be allocated
+
+   RETURNS:
+     allocated DPI descriptor
+
+   NOTES:
+     
+ */
+
+Descriptor * EnvImpl::allocDescriptor(DescriptorType descriptorType)
+{
+  void *descriptor = NULL;
+
+  ociCallEnv(OCIDescriptorAlloc(envh_, &descriptor, descriptorType,
+                                0, NULL), envh_);
+
+  return (Descriptor *)descriptor;
+}
+
+
+
+/*****************************************************************************/
+/*
+   DESCRIPTION
+     Allocate DPI descriptor array.
+
+   PARAMETERS:
+     descriptorType - Type of DPI descriptor to be allocated
+     arraySize      - size of descriptor array
+
+   RETURNS:
+     allocated DPI descriptor array
+
+   NOTES:
+     
+ */
+
+void EnvImpl::allocDescriptorArray(DescriptorType descriptorType,
+                                   unsigned int arraySize,
+                                   Descriptor **descriptorArray)
+{
+  ociCallEnv(OCIArrayDescriptorAlloc(envh_, (void **)descriptorArray,
+                                     descriptorType, arraySize,
+                                     0, NULL), envh_);
+}
+
+
+
+/*****************************************************************************/
+/*
+   DESCRIPTION
+     Get the underlying OCI environment handlle.
+
+   PARAMETERS:
+     none
+
+   RETURNS:
+     OCI environment handle
+
+   NOTES:
+     
+ */
+
+DpiHandle * EnvImpl::envHandle() const
+{
+  return (DpiHandle *)envh_;
+}
 
 
 

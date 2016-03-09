@@ -2,17 +2,17 @@
 
 /******************************************************************************
  *
- * You may not use the identified files except in compliance with the Apache 
+ * You may not use the identified files except in compliance with the Apache
  * License, Version 2.0 (the "License.")
  *
- * You may obtain a copy of the License at 
+ * You may obtain a copy of the License at
  * http://www.apache.org/licenses/LICENSE-2.0.
  *
- * Unless required by applicable law or agreed to in writing, software 
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
- * See the License for the specific language governing permissions and 
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  *
  * NAME
@@ -54,6 +54,15 @@ class PoolImpl;
 
 
 
+/*
+ * The maximum character expansion ratio from any DB character to 
+ * AL32UTF8 is known to be 3-times
+ */
+#define DPI_WORSTCASE_CHAR_CONVERSION_RATIO    3
+
+// No character expansion required if DB has AL32UTF8 charset
+#define DPI_BESTCASE_CHAR_CONVERSION_RATIO     1
+
 /*---------------------------------------------------------------------------
                      PUBLIC TYPES
   ---------------------------------------------------------------------------*/
@@ -62,43 +71,78 @@ class ConnImpl : public Conn
 {
  public:
                                 // creation/termination
-  
-  ConnImpl(EnvImpl *env, OCIEnv *envh, bool isExternalAuth,
-           unsigned int stmtCacheSize, 
-           const string &user, const string &password,
-           const string &connString);
 
-  ConnImpl(PoolImpl *pool, OCIEnv *envh, bool isExternalAuth,
-           OraText *poolName, ub4 poolNameLen
+  ConnImpl(EnvImpl *env, OCIEnv *envh, bool externalAuth,
+           unsigned int stmtCacheSize,
+           const string &user, const string &password,
+           const string &connString,
+           const string &connClass);
+
+  ConnImpl(PoolImpl *pool, OCIEnv *envh, bool externalAuth,
+           OraText *poolName, ub4 poolNameLen, const string &connClass
            );
-  
+
   virtual ~ConnImpl();
- 
+
   virtual void release();
 
                                 // interface properties
   virtual void stmtCacheSize(unsigned int stmtCacheSize);
   virtual unsigned int stmtCacheSize() const;
 
+  virtual void lobPrefetchSize(unsigned int lobPrefetchSize);
+  virtual unsigned int lobPrefetchSize() const;
+
   virtual void clientId(const string &clientId);
 
   virtual void module(const string &module);
 
   virtual void action(const string &action);
+  virtual int getByteExpansionRatio ();
 
-
-                                // interface methods
+                              // interface methods
   virtual Stmt* getStmt(const string &sql);
 
   virtual void releaseStmt(Stmt *stmt);
 
   virtual void commit();
-  
+
   virtual void rollback();
-  
+
   virtual void breakExecution();
-  
+
+  virtual DpiHandle *getSvch (){return (DpiHandle *)svch_;};
+
+  virtual DpiHandle *getErrh (){return (DpiHandle *)errh_;};
+
+  virtual void setErrState ( int errNum );
+
+  #if OCI_MAJOR_VERSION < 12
+    inline void hasTxn(boolean connHasTxn)
+    {
+      // sets the flag used during connection release.
+      hasTxn_ = connHasTxn;
+    }
+    inline boolean hasTxn()
+    {
+      // returns flag to denote active transactions.
+      return hasTxn_;
+    }
+  #endif
+
+    virtual unsigned int getServerVersion () ;
+
 private:
+
+  void initConnImpl( bool pool, bool externalAuth, const string& connClass,
+                     OraText *poolNmRconnStr, ub4 nameLen,
+                     const string &user, const string &password );
+
+  int getCsRatio ( ub2 csid )
+  {
+    return ( csid == DPI_AL32UTF8 ) ? DPI_BESTCASE_CHAR_CONVERSION_RATIO :
+             DPI_WORSTCASE_CHAR_CONVERSION_RATIO;
+  }
   
   void cleanup();
 
@@ -111,6 +155,10 @@ private:
   OCIAuthInfo *auth_;           // OCI auth handle
   OCISvcCtx   *svch_;           // OCI service handle
   OCISession  *sessh_;          // OCI Session handle. Do not free this.
+  boolean     hasTxn_;          // set if transaction is in progress
+  int         csratio_;         // character expansion ratio
+  OCIServer   *srvh_;           // OCI server handle
+  bool        dropConn_;        // Set flag in case of unusable connection
 };
 
 
