@@ -22,6 +22,7 @@
  *
  *****************************************************************************/
 
+#include <stdio.h>
 #include <string.h>
 
 #ifndef DPIUTILS_ORACLE
@@ -33,6 +34,9 @@
 # include <dpiExceptionImpl.h>
 #endif
 
+#ifdef WIN32
+  #define  snprintf  _snprintf
+#endif
 
 
 

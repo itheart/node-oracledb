@@ -75,7 +75,7 @@ class PoolImpl : public SPool
   virtual unsigned int connectionsInUse() const;
 
                                 // interface methods
-  virtual Conn * getConnection();
+  virtual Conn * getConnection( const std::string& connClass );
 
                                 // internal methods
   virtual void releaseConnection(ConnImpl *conn);

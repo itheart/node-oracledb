@@ -23,6 +23,8 @@
  *
  *****************************************************************************/
 
+#include "node.h"
+
 #include "njsOracle.h"
 #include "njsConnection.h"
 #include "njsPool.h"
@@ -53,6 +55,7 @@ Oracledb::Oracledb()
   poolMin_       = POOL_MIN;
   poolIncrement_ = POOL_INCR;
   poolTimeout_   = POOL_TIMEOUT;
+  connClass_     = "";
 } 
 
 /*****************************************************************************/
@@ -123,6 +126,11 @@ void Oracledb::Init(Handle<Object> target)
                                             String::New("version"),
                                             Oracledb::GetVersion,
                                             Oracledb::SetVersion ); 
+  oracledbTemplate_s->InstanceTemplate()->SetAccessor(
+                                            String::New("connectionClass"),
+                                            Oracledb::GetConnectionClass,
+                                            Oracledb::SetConnectionClass );
+  
 
   target->Set(String::New("Oracledb"),oracledbTemplate_s->GetFunction());
 }
@@ -369,7 +377,7 @@ Handle<Value> Oracledb::GetVersion ( Local<String> property,
                                      const AccessorInfo& info ) 
 {
   HandleScope scope;
-  int version = NJSORACLE_VERSION;
+  int version = NJS_ORACLE_VERSION;
   Local<Integer> value = v8::Integer::New(version);
   return scope.Close(value);
 }
@@ -385,8 +393,43 @@ void Oracledb::SetVersion ( Local<String> property, Local<Value> value,
   HandleScope scope;
   std::string msg;
   msg = NJSMessages::getErrorMsg(errReadOnly, "version");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length()); 
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length()); 
 }
+
+
+/*****************************************************************************/
+/*
+  DESCRIPTION
+    Get Accessor of connectionClass property
+*/
+Handle<Value> Oracledb::GetConnectionClass ( Local<String> property,
+                                             const AccessorInfo& info)
+{
+  HandleScope scope;
+  
+  Oracledb *oracledb = ObjectWrap::Unwrap<Oracledb>(info.Holder());
+  Handle<String> value = v8::String::New (oracledb->connClass_.c_str(), 
+                                          (int)oracledb->connClass_.length ());
+  return scope.Close(value);
+}
+
+
+/*****************************************************************************/
+/*
+  DESCRIPTION
+    Set Accessor of connectionClass property
+*/
+void Oracledb::SetConnectionClass (Local<String> property, Local<Value> value,
+                                   const AccessorInfo& info)
+{
+  HandleScope scope;
+  
+  Oracledb *oracledb = ObjectWrap::Unwrap<Oracledb>(info.Holder());
+  v8::String::Utf8Value utfstr ( value->ToString () );
+  
+  oracledb->connClass_ = std::string ( *utfstr, utfstr.length() );
+}
+
 
 /*****************************************************************************/
 /*
@@ -401,7 +444,6 @@ Handle<Value>  Oracledb::GetConnection(const Arguments& args)
 {
   HandleScope scope;
  
-  JSONValueIndicator ind; 
   Local<Function> callback;
   Local<Object> connProps;
   NJS_GET_CALLBACK ( callback, args );
@@ -414,15 +456,17 @@ Handle<Value>  Oracledb::GetConnection(const Arguments& args)
   NJS_GET_ARG_V8OBJECT ( connProps, connBaton->error, args, 0,
                          exitGetConnection ); 
   NJS_GET_STRING_FROM_JSON ( connBaton->user, connBaton->error, 
-                             ind, connProps, "user", 0, exitGetConnection );
+                             connProps, "user", 0, exitGetConnection );
   NJS_GET_STRING_FROM_JSON ( connBaton->pswrd, connBaton->error,
-                             ind, connProps, "password", 0, exitGetConnection );
+                             connProps, "password", 0, exitGetConnection );
   NJS_GET_STRING_FROM_JSON ( connBaton->connStr, connBaton->error,
-                             ind, connProps, "connectString", 0, exitGetConnection );
+                             connProps, "connectString", 0, exitGetConnection );
 
   connBaton->stmtCacheSize =  oracledb->stmtCacheSize_; 
+  connBaton->connClass     = oracledb->connClass_;
+  
   NJS_GET_UINT_FROM_JSON   ( connBaton->stmtCacheSize, connBaton->error,
-                             ind, connProps, "stmtCacheSize", 0, exitGetConnection );
+                             connProps, "stmtCacheSize", 0, exitGetConnection );
   connBaton->oracledb   =  oracledb; 
   connBaton->dpienv     =  oracledb->dpienv_; 
 
@@ -458,7 +502,8 @@ void Oracledb::Async_GetConnection (uv_work_t *req)
                                getConnection( connBaton->user, 
                                               connBaton->pswrd, 
                                               connBaton->connStr, 
-                                              connBaton->stmtCacheSize );
+                                              connBaton->stmtCacheSize,
+                                              connBaton->connClass );
 
   }
   catch (dpi::Exception& e)
@@ -524,7 +569,6 @@ Handle<Value> Oracledb::CreatePool (const Arguments &args)
 {
   HandleScope scope ;
  
-  JSONValueIndicator ind; 
   Local<Function> callback;
   Local<Object> poolProps;
   NJS_GET_CALLBACK ( callback, args );
@@ -537,11 +581,11 @@ Handle<Value> Oracledb::CreatePool (const Arguments &args)
   NJS_GET_ARG_V8OBJECT ( poolProps, poolBaton->error, args, 0,
                          exitCreatePool ); 
   NJS_GET_STRING_FROM_JSON ( poolBaton->user, poolBaton->error, 
-                             ind, poolProps, "user", 0, exitCreatePool );
+                             poolProps, "user", 0, exitCreatePool );
   NJS_GET_STRING_FROM_JSON ( poolBaton->pswrd, poolBaton->error,
-                             ind, poolProps, "password", 0, exitCreatePool );
+                             poolProps, "password", 0, exitCreatePool );
   NJS_GET_STRING_FROM_JSON ( poolBaton->connStr, poolBaton->error,
-                             ind, poolProps, "connectString", 0, exitCreatePool );
+                             poolProps, "connectString", 0, exitCreatePool );
 
   poolBaton->poolMax       =  oracledb->poolMax_; 
   poolBaton->poolMin       =  oracledb->poolMin_; 
@@ -550,15 +594,15 @@ Handle<Value> Oracledb::CreatePool (const Arguments &args)
   poolBaton->stmtCacheSize =  oracledb->stmtCacheSize_; 
 
   NJS_GET_UINT_FROM_JSON   ( poolBaton->poolMax, poolBaton->error,
-                             ind, poolProps, "poolMax", 0, exitCreatePool );
+                             poolProps, "poolMax", 0, exitCreatePool );
   NJS_GET_UINT_FROM_JSON   ( poolBaton->poolMin, poolBaton->error,
-                             ind, poolProps, "poolMin", 0, exitCreatePool );
+                             poolProps, "poolMin", 0, exitCreatePool );
   NJS_GET_UINT_FROM_JSON   ( poolBaton->poolIncrement, poolBaton->error,
-                             ind, poolProps, "poolIncrement", 0, exitCreatePool );
+                             poolProps, "poolIncrement", 0, exitCreatePool );
   NJS_GET_UINT_FROM_JSON   ( poolBaton->poolTimeout, poolBaton->error,
-                             ind, poolProps, "poolTimeout", 0, exitCreatePool );
+                             poolProps, "poolTimeout", 0, exitCreatePool );
   NJS_GET_UINT_FROM_JSON   ( poolBaton->stmtCacheSize, poolBaton->error,
-                             ind, poolProps, "stmtCacheSize", 0, exitCreatePool );
+                             poolProps, "stmtCacheSize", 0, exitCreatePool );
   
   poolBaton->oracledb  =  oracledb;
   poolBaton->dpienv    =  oracledb->dpienv_; 

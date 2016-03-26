@@ -17,6 +17,7 @@
      - BIND_INOUT
      - BIND_OUT
   - 3.2 [Oracledb Properties](#oracledbproperties)
+     - [connectionClass](#propdbconclass)
      - [isAutoCommit](#propdbisautocommit)
      - [maxRows](#propdbmaxrows)
      - [outFormat](#propdboutformat)
@@ -59,8 +60,9 @@
      - 5.3.3 [SELECT Statements](#select)
          - [Result Type Mapping](#typemap)
          - [Statement Caching](#stmtcache)
-  - 5.4 [Miscellaneous Operations](#miscellaneousops)
-6. [External Configuration](#oraaccess)
+6. [Transaction Management](#transactionmgt)
+7. [Database Resident Connection Pooling](#drcp)
+8. [External Configuration](#oraaccess)
 
 ## <a name="intro"></a> 1. Introduction
 
@@ -227,6 +229,26 @@ parameters can result in the error *ORA-24413: Invalid number of
 sessions specified*.
 
 Each of the configuration properties is described below.
+
+<a name="propdbconclass"></a>
+```
+String connectionClass
+```
+
+The Connection class value defines a logical name for connections.
+When a pooled session has a connection class, Oracle ensures that the
+session is not shared outside of that connection class.
+
+The connection class value is similarly used by
+[Database Resident Connection Pooling](#drcp) (DRCP) to allow or
+disallow sharing of sessions.
+
+For example, where two different kinds of users share one pool, you
+might set ```connectionClass``` to 'HR' for connections that access a
+Human Resources system, and it might be set to 'OE' for users of an
+Order Entry system.  Users will only be given sessions of the
+appropriate class, allowing maximal reuse of resources in each case,
+and preventing any session information leaking between the two systems.
 
 <a name="propdbisautocommit"></a>
 ```
@@ -588,8 +610,8 @@ The Pool object obtains connections to the Oracle database using the
 is created for each Pool object.
 
 After the application finishes using a connection pool, it should
-terminate the connection pool by calling the `terminate()` method on the
-Pool object.
+release all connections and terminate the connection pool by calling
+the `terminate()` method on the Pool object.
 
 ### <a name="poolproperties"></a> 4.1 Pool Properties
 
@@ -704,10 +726,9 @@ This call terminates the connection pool.
 
 This is an asynchronous call.
 
-All open connections in a connection pool are closed when a connection
-pool terminates.
-
-Any ongoing transaction in a connection will be committed.
+Any open connections should be released with [`release()`](#release)
+before `terminate()` is called, otherwise an error will be returned
+and the pool will be unusable.
 
 ##### Prototype
 
@@ -928,7 +949,7 @@ Option Property | Description
 ----------------|-------------
 *Number maxRows*  | Number of rows to fetch for `SELECT` statements. To improve database efficiency, SQL queries should use a row limiting clause like [OFFSET / FETCH](https://docs.oracle.com/database/121/SQLRF/statements_10002.htm#BABEAACC) or equivalent. The `maxRows` attribute can be used to stop badly coded queries from returning unexpectedly large numbers of rows.
 *String outFormat* |  The format of rows fetched for `SELECT` statements. This can be either `ARRAY` or `OBJECT`. If specified as `ARRAY`, then each row is fetched as an array of column values. If specified as `OBJECT`, then each row is fetched as a JavaScript object.
-*Boolean isAutoCommit* | If it is true, then each [DML](https://docs.oracle.com/database/121/CNCPT/glossary.htm#CNCPT2042) is automatically committed. Note: Oracle Database will implicitly commit when a [DDL](https://docs.oracle.com/database/121/CNCPT/glossary.htm#CHDJJGGF) statement is executed.  Any ongoing transaction will also be committed when [`release()`](#release) or [`terminate()`](#terminate) are called.
+*Boolean isAutoCommit* | If it is true, then each [DML](https://docs.oracle.com/database/121/CNCPT/glossary.htm#CNCPT2042) is automatically committed. Note: Oracle Database will implicitly commit when a [DDL](https://docs.oracle.com/database/121/CNCPT/glossary.htm#CHDJJGGF) statement is executed.
 
 ```
 function(Error error, [Object result])
@@ -989,8 +1010,17 @@ the connection is returned to the pool.
 
 This is an asynchronous call.
 
+Note: calling `release()` when connections are no longer required is
+strongly encouraged.  Releasing helps avoid resource leakage and can
+improve system efficiency.
+
 When a connection is released, any ongoing transaction on the
-connection is implicitly committed.
+connection is rolled back.
+
+After releasing a connection to a pool, there is no
+guarantee a subsequent `getConnection()` call gets back the same
+database connection.  The application must redo any ALTER SESSION
+statements on the new connection object, as required.
 
 ##### Prototype
 
@@ -1016,7 +1046,7 @@ Callback function parameter | Description
 
 #### <a name="rollback"></a> 5.2.5 rollback()
 
-This call rolls-back the current transaction in progress on the
+This call rolls back the current transaction in progress on the
 connection.
 
 ##### Description
@@ -1050,13 +1080,12 @@ Callback function parameter | Description
 A SQL or PL/SQL statement may be executed using the *Connection*
 [`execute()`](#execute) method.
 
-By default,
+
 [DML](https://docs.oracle.com/database/121/CNCPT/glossary.htm#CNCPT2042)
-statements are not committed unless the `commit()` call is issued.
-However, if the `isAutoCommit` property is *true* for the connection,
-then all DML operations are committed as they are executed. The
-`isAutoCommit` property can be overridden for the duration of an
-`execute()` call to automatically commit a DML statement.
+statements are not committed unless the `commit()` call is issued or
+the `isAutoCommit` property is *true* at the time of execution.  Any
+ongoing transaction will be rolled back when [`release()`](#release)
+is called, or when the application ends.
 
 Using bind variables in SQL statements is recommended in preference to
 constructing SQL statements by string concatenation.  This is for
@@ -1295,32 +1324,68 @@ statements being executed by the application.
 The statement cache can be automatically tuned with the
 [oraaccess.xml file](#oraaccess).
 
-### <a name="miscellaneousops"></a> 5.4 Miscellaneous Operations
+## <a name="transactionmgt"></a> 6. Transaction Management
 
-Transaction management implements [`commit()`](#commit) and
-[`rollback()`](#rollback) methods. A long-running database operation
-may be interrupted by the [`break()`](#break) call.
+Node-oraclebd implements [`commit()`](#commit) and
+[`rollback()`](#rollback) methods.
 
 After all database calls on the connection complete, the application
 should use the [`release()`](#release) call to release the connection.
 
-When a connection is released, it implicitly commits any ongoing
-transactions.  Therefore if a released, pooled connection is used by
+When a connection is released, it rolls back any ongoing
+transaction.  Therefore if a released, pooled connection is used by
 a subsequent [`pool.getConnection()`](#getconnection2) call, then any
 [DML](https://docs.oracle.com/database/121/CNCPT/glossary.htm#CNCPT2042)
 statements performed on the obtained connection are always in a new
 transaction.
 
-Note that after releasing a connection to the pool, there is no
-guarantee a subsequent `getConnection()` call gets back the same
-database connection.  The application must redo any ALTER SESSION
-statements on the new connection object, as required.
-
 When an application ends, any uncommitted transaction on a connection
-will be rolled back if there is no explicit commit, or
-[`release()`](#release) or [`terminate()`](#terminate) are not called.
+will be rolled back if there is no explicit commit.
 
-## <a name="oraaccess"></a> 6. External Configuration
+## <a name="drcp"></a> 7. Database Resident Connection Pooling
+
+[Database Resident Connection Pooling](http://docs.oracle.com/database/121/ADFNS/adfns_perf_scale.htm#ADFNS228)
+enables database resource sharing for applications that run in
+multiple client processes or run on multiple middle-tier application
+servers.  DRCP reduces the overall number of connections that a
+database must handle.
+
+DRCP is distinct from node-oracledb's local
+[connection pool](#poolclass).  The two pools can be used separately,
+or together. 
+
+DRCP is useful for applications which share the same credentials, have
+similar session settings (for example date format settings and PL/SQL
+package state), and where the application gets a database connection,
+works on it for a relatively short duration, and then releases it.
+
+To use DRCP in node-oracledb:
+
+1. The DRCP pool must be started in the database: `execute dbms_connection_pool.start_pool();`
+2. The `getConnection()` property `connectString` must specify to use a pooled server, either by the Easy Connect syntax like `myhost/sales:POOLED`, or by using a `tnsnames.ora` alias for a connection that contains `(SERVER=POOLED)`.
+3. The [`connectionClass`](#propdbconclass) should be set by the node-oracledb application.  If it is not set, the pooled server session memory will not be reused optimally.
+
+The DRCP 'Purity' value is NEW for
+[`oracledb.getConnection()`](#getconnection1) connections that do not
+use a local connection pool.  These connections reuse a DRCP pooled
+server process (thus avoiding the costs of process creation and
+destruction) but do not reuse its session memory.  The 'Purity' is
+SELF for [`pool.getConnection()`](#getconnection2) connections,
+allowing reuse of the pooled server process and session memory, giving
+maximum benefit from DRCP.  See the Oracle documentation on
+[benefiting from scalability](http://docs.oracle.com/database/121/ADFNS/adfns_perf_scale.htm#ADFNS506).
+
+The
+[Oracle DRCP documentation](http://docs.oracle.com/database/121/ADFNS/adfns_perf_scale.htm#ADFNS228)
+has more details, including when to use, and when not to use DRCP.
+
+There are a number of Oracle Database `V$` views that can be used to
+monitor DRCP.  These are discussed in the documentation and in the
+Oracle white paper
+[PHP Scalability and High Availability](http://www.oracle.com/technetwork/topics/php/php-scalability-ha-twp-128842.pdf).
+This paper also gives more detail on configuring DRCP.
+
+## <a name="oraaccess"></a> 8. External Configuration
 
 When node-oracledb is linked with Oracle 12c client libraries, the Oracle
 client-side configuration file

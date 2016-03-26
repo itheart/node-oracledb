@@ -37,9 +37,6 @@
                      PUBLIC CONSTANTS AND MACROS
   ---------------------------------------------------------------------------*/
 
-#define TBSIZE(textBuffer)  (sizeof(textBuffer) - 1)
-
-
 
 
 /*---------------------------------------------------------------------------
@@ -54,6 +51,9 @@
 void ociCall(sword rc, OCIError *errh);
 
 void ociCallEnv(sword rc, OCIEnv *envh);
+
+void getDriverName ( char *name, unsigned int namelen );
+
 
 
 

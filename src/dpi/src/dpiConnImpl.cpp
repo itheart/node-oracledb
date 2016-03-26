@@ -74,10 +74,11 @@ using namespace std;
 ConnImpl::ConnImpl(EnvImpl *env, OCIEnv *envh, bool isExternalAuth,
                    unsigned int stmtCacheSize, 
                    const string &user, const string &password,
-                   const string &connString)
+                   const string &connString, const string &connClass)
 
 try :  env_(env), pool_(NULL), 
-       envh_(envh), errh_(NULL), auth_(NULL), svch_(NULL), sessh_(NULL)
+       envh_(envh), errh_(NULL), auth_(NULL), svch_(NULL), sessh_(NULL),
+       hasTxn_(false)
 {
   ub4 mode = isExternalAuth ? OCI_SESSGET_CREDEXT : OCI_DEFAULT;
   
@@ -90,22 +91,30 @@ try :  env_(env), pool_(NULL),
   if (!isExternalAuth)
   {
     ociCall(OCIAttrSet((void *)auth_, OCI_HTYPE_AUTHINFO,
-                       (void *)user.data(), user.length(),
+                       (void *)user.data(), (ub4) user.length(),
                        OCI_ATTR_USERNAME, errh_), errh_);
     
     ociCall(OCIAttrSet((void *)auth_, OCI_HTYPE_AUTHINFO,
-                       (void *)password.data(), password.length(),
+                       (void *)password.data(), (ub4) password.length(),
                        OCI_ATTR_PASSWORD, errh_), errh_);
   }
-  
+                            
+  // If connection class provided, set it on auth handle
+  if (connClass.length() )
+  {
+    ociCall (OCIAttrSet ((void*)auth_, OCI_HTYPE_AUTHINFO, 
+                         (void *)connClass.data(), (ub4) connClass.length(),
+                         OCI_ATTR_CONNECTION_CLASS, errh_), errh_);
+  }
+
   ociCall(OCISessionGet(envh_, errh_, &svch_, auth_,
                         (OraText *)connString.data(),
-                        connString.length(), NULL, 0, NULL, NULL, NULL,
+                        (ub4) connString.length(), NULL, 0, NULL, NULL, NULL,
                         mode), errh_);
-
+  
   ociCall(OCIAttrGet(svch_, OCI_HTYPE_SVCCTX, &sessh_,  0,
                      OCI_ATTR_SESSION, errh_),errh_);
-
+                     
   this->stmtCacheSize(stmtCacheSize);
 }
 
@@ -138,20 +147,28 @@ catch (...)
  */
  
 ConnImpl::ConnImpl(PoolImpl *pool, OCIEnv *envh, bool isExternalAuth,
-                   OraText *poolName, ub4 poolNameLen
+                   OraText *poolName, ub4 poolNameLen, const string& connClass
                    )
 
 try :  env_(NULL), pool_(pool), 
        envh_(envh), errh_(NULL), auth_(NULL),
-       svch_(NULL), sessh_(NULL)
+       svch_(NULL), sessh_(NULL), hasTxn_(false)
 {
   ub4 mode = isExternalAuth ? (OCI_SESSGET_CREDEXT | OCI_SESSGET_SPOOL) :
                               OCI_SESSGET_SPOOL;
   ociCallEnv(OCIHandleAlloc((void *)envh_, (dvoid **)&errh_,
                             OCI_HTYPE_ERROR, 0, (dvoid **)0), envh_);
-
   ociCallEnv(OCIHandleAlloc((void *)envh_, (dvoid **)&auth_,
                             OCI_HTYPE_AUTHINFO, 0, (dvoid **)0), envh_);
+                            
+  // If connection class provided, set it on auth handle
+  if (connClass.length() )
+  {
+    ociCall (OCIAttrSet ((void*)auth_, OCI_HTYPE_AUTHINFO, 
+                         (void *)connClass.data(), (ub4) connClass.length(),
+                         OCI_ATTR_CONNECTION_CLASS, errh_), errh_);
+  }
+    
   ociCall(OCISessionGet(envh_, errh_, &svch_, auth_,
                         poolName, poolNameLen,
                         NULL, 0, NULL, NULL, NULL,
@@ -207,6 +224,12 @@ ConnImpl::~ConnImpl()
 
 void ConnImpl::release()
 {
+  #if OCI_MAJOR_VERSION >= 12
+    ociCall(OCIAttrGet(sessh_, OCI_HTYPE_SESSION, &hasTxn_, NULL,
+                       OCI_ATTR_TRANSACTION_IN_PROGRESS, errh_), errh_);
+  #endif
+  if(hasTxn_)
+    rollback(); 
   if (pool_)
     pool_->releaseConnection(this);
   else if (env_)
@@ -233,8 +256,6 @@ void ConnImpl::releaseStmt ( Stmt *stmt )
     delete stmt;
   }
 }
-
-
 
 /*****************************************************************************/
 /*
@@ -304,7 +325,7 @@ unsigned int ConnImpl::stmtCacheSize() const
 void ConnImpl::clientId(const string &clientId)
 {
   ociCall(OCIAttrSet(sessh_, OCI_HTYPE_SESSION, (void *)clientId.data(),
-                     clientId.length(), OCI_ATTR_CLIENT_IDENTIFIER, errh_),
+                     (ub4)clientId.length(), OCI_ATTR_CLIENT_IDENTIFIER, errh_),
           errh_);
 }
 
@@ -328,7 +349,7 @@ void ConnImpl::clientId(const string &clientId)
 void ConnImpl::module(const string &module)
 {
   ociCall(OCIAttrSet(sessh_, OCI_HTYPE_SESSION, (void *)module.data(),
-                     module.length(), OCI_ATTR_MODULE, errh_), errh_);
+                     (ub4) module.length(), OCI_ATTR_MODULE, errh_), errh_);
 }
 
 
@@ -351,7 +372,7 @@ void ConnImpl::module(const string &module)
 void ConnImpl::action(const string &action)
 {
   ociCall(OCIAttrSet(sessh_, OCI_HTYPE_SESSION, (void *)action.data(),
-                     action.length(), OCI_ATTR_ACTION, errh_), errh_);
+                     (ub4) action.length(), OCI_ATTR_ACTION, errh_), errh_);
 }
 
 

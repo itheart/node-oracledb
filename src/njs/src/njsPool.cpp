@@ -23,6 +23,10 @@
  *
  *****************************************************************************/
 
+#include "node.h"
+
+#include <string>
+
 #include "njsOracle.h"
 #include "njsPool.h"
 #include "njsConnection.h"
@@ -135,7 +139,7 @@ Handle<Value> Pool::GetPoolMin (Local<String> property,
   if(!njsPool->isValid_)
   {
     string msg = NJSMessages::getErrorMsg(errInvalidPool);
-    NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+    NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
     return Undefined();
   }
   else
@@ -159,7 +163,7 @@ Handle<Value> Pool::GetPoolMax (Local<String> property,
   if(!njsPool->isValid_)
   {
     string msg = NJSMessages::getErrorMsg(errInvalidPool);
-    NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+    NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
     return Undefined();
   }
   else
@@ -183,7 +187,7 @@ Handle<Value> Pool::GetPoolIncrement (Local<String> property,
   if(!njsPool->isValid_)
   {
     string msg = NJSMessages::getErrorMsg(errInvalidPool);
-    NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+    NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
     return Undefined();
   }
   else
@@ -207,7 +211,7 @@ Handle<Value> Pool::GetPoolTimeout (Local<String> property,
   if(!njsPool->isValid_)
   {
     string msg = NJSMessages::getErrorMsg(errInvalidPool);
-    NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+    NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
     return Undefined();
   }
   else
@@ -231,7 +235,7 @@ Handle<Value> Pool::GetConnectionsOpen (Local<String> property,
   if(!njsPool->isValid_)
   {
     string error = NJSMessages::getErrorMsg ( errInvalidPool );
-    NJS_SET_EXCEPTION(error.c_str(), error.length());
+    NJS_SET_EXCEPTION(error.c_str(), (int) error.length());
     return scope.Close(Undefined());
   }
   try
@@ -242,7 +246,7 @@ Handle<Value> Pool::GetConnectionsOpen (Local<String> property,
   }
   catch(dpi::Exception &e)
   {
-    NJS_SET_EXCEPTION(e.what(), strlen(e.what()));
+    NJS_SET_EXCEPTION(e.what(), (int) strlen(e.what()));
     return Undefined();
   }
   return Undefined();
@@ -262,7 +266,7 @@ Handle<Value> Pool::GetConnectionsInUse (Local<String> property,
   if(!njsPool->isValid_)
   {
     string error = NJSMessages::getErrorMsg ( errInvalidPool );
-    NJS_SET_EXCEPTION(error.c_str(), error.length());
+    NJS_SET_EXCEPTION(error.c_str(), (int) error.length());
     return scope.Close(Undefined());
   }
   try
@@ -273,7 +277,7 @@ Handle<Value> Pool::GetConnectionsInUse (Local<String> property,
   }
   catch(dpi::Exception &e)
   {
-    NJS_SET_EXCEPTION(e.what(), strlen(e.what()));
+    NJS_SET_EXCEPTION(e.what(), (int) strlen(e.what()));
     return Undefined();
   }
   return Undefined();
@@ -292,7 +296,7 @@ Handle<Value> Pool::GetStmtCacheSize (Local<String> property,
   if(!njsPool->isValid_)
   {
     string msg = NJSMessages::getErrorMsg(errInvalidPool);
-    NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+    NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
     return Undefined();
   }
   else 
@@ -318,7 +322,7 @@ void Pool::SetPoolMin (Local<String> property, Local<Value> value,
     msg = NJSMessages::getErrorMsg(errInvalidPool);
   else
     msg = NJSMessages::getErrorMsg(errReadOnly, "poolMin");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
 }
 
 /*****************************************************************************/
@@ -336,7 +340,7 @@ void Pool::SetPoolMax (Local<String> property, Local<Value> value,
     msg = NJSMessages::getErrorMsg(errInvalidPool);
   else
     msg = NJSMessages::getErrorMsg(errReadOnly, "poolMax");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
 }
 
 /*****************************************************************************/
@@ -354,7 +358,7 @@ void Pool::SetPoolIncrement (Local<String> property, Local<Value> value,
     msg = NJSMessages::getErrorMsg(errInvalidPool);
   else
     msg = NJSMessages::getErrorMsg(errReadOnly, "poolIncrement");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
 }
 
 /*****************************************************************************/
@@ -372,7 +376,7 @@ void Pool::SetPoolTimeout (Local<String> property, Local<Value> value,
     msg = NJSMessages::getErrorMsg(errInvalidPool);
   else
     msg = NJSMessages::getErrorMsg(errReadOnly, "poolTimeout");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
 }
 
 /*****************************************************************************/
@@ -390,7 +394,7 @@ void Pool::SetConnectionsOpen (Local<String> property, Local<Value> value,
     msg = NJSMessages::getErrorMsg(errInvalidPool);
   else
     msg = NJSMessages::getErrorMsg(errReadOnly, "connectionsOpen");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
 }
 
 /*****************************************************************************/
@@ -408,7 +412,7 @@ void Pool::SetConnectionsInUse (Local<String> property, Local<Value> value,
     msg = NJSMessages::getErrorMsg(errInvalidPool);
   else
     msg = NJSMessages::getErrorMsg(errReadOnly, "connectionsInUse");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
 }
 
 /*****************************************************************************/
@@ -426,7 +430,7 @@ void Pool::SetStmtCacheSize(Local<String> property, Local<Value> value,
     msg = NJSMessages::getErrorMsg(errInvalidPool);
   else
     msg = NJSMessages::getErrorMsg(errReadOnly, "stmtCacheSize");
-  NJS_SET_EXCEPTION(msg.c_str(), msg.length());
+  NJS_SET_EXCEPTION(msg.c_str(), (int) msg.length());
 }
 
 /*****************************************************************************/
@@ -457,6 +461,8 @@ Handle<Value> Pool::GetConnection(const Arguments& args)
   }
   connBaton->dpipool  = njsPool->dpipool_;
   connBaton->oracledb = njsPool->oracledb_;
+  connBaton->connClass = njsPool->oracledb_->getConnectionClass ();  
+  
 exitGetConnection:
   connBaton->req.data = (void *)connBaton;
   
@@ -484,7 +490,8 @@ void Pool::Async_GetConnection(uv_work_t *req)
 
   try
   {
-    connBaton->dpiconn = connBaton-> dpipool -> getConnection ();
+    connBaton->dpiconn = connBaton-> dpipool -> getConnection ( 
+                                              connBaton-> connClass);
   }
   catch (dpi::Exception &e)
   {
@@ -501,11 +508,12 @@ void Pool::Async_GetConnection(uv_work_t *req)
   
    PARAMETERS:
      UV queue work block 
+     status - expected to be non-zero.
 
    NOTES:
      Connection handle is formed and handed over to JS.
 */
-Handle<Value> Pool::Async_AfterGetConnection(uv_work_t *req)
+void Pool::Async_AfterGetConnection(uv_work_t *req)
 {
   HandleScope scope;
   connectionBaton *connBaton = (connectionBaton*)req->data;
@@ -533,7 +541,6 @@ Handle<Value> Pool::Async_AfterGetConnection(uv_work_t *req)
     node::FatalException(tc);
   }
   delete connBaton;
-  return Undefined();
 }
 
 /*****************************************************************************/

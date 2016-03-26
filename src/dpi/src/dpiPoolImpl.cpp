@@ -98,16 +98,16 @@ PoolImpl::PoolImpl(EnvImpl *env, OCIEnv *envh,
                            
   ociCall(OCIHandleAlloc((void *)envh_, (dvoid **)&spoolh_,
                          OCI_HTYPE_SPOOL, 0, (dvoid **)0), errh_);
-
+                         
   ociCall(OCISessionPoolCreate(envh_, errh_, spoolh_, 
                                &poolName_, &poolNameLen_,
                                (OraText *)connString.data (), 
-                               connString.length(),
+                               (ub4) connString.length(),
                                poolMin, poolMax,
                                poolIncrement, 
-                               (OraText *)user.data (), user.length(),
+                               (OraText *)user.data (), (ub4) user.length(),
                                (OraText *)password.data (),
-                               password.length(), 
+                               (ub4) password.length(), 
                                OCI_SPC_HOMOGENEOUS), errh_ );
 
   this->poolTimeout(poolTimeout);
@@ -166,6 +166,11 @@ PoolImpl::~PoolImpl()
 
 void PoolImpl::terminate()
 {
+  if (poolName_)
+  {
+    ociCall( OCISessionPoolDestroy( spoolh_, errh_, OCI_DEFAULT), errh_);
+    poolName_ = NULL;
+  }
   env_->terminatePool(this);
 }
 
@@ -285,10 +290,10 @@ unsigned int PoolImpl::connectionsInUse() const
      
  */
 
-Conn * PoolImpl::getConnection ()
+Conn * PoolImpl::getConnection ( const std::string& connClass)
 {
   Conn *conn = new ConnImpl(this, envh_, isExternalAuth_,
-                            poolName_, poolNameLen_
+                            poolName_, poolNameLen_, connClass
                             );
   return conn;
 }
@@ -341,16 +346,16 @@ void PoolImpl::releaseConnection(ConnImpl *conn)
 
 void PoolImpl::cleanup()
 {
-
   if (poolName_)
   {
-    ociCall( OCISessionPoolDestroy( spoolh_, errh_, OCI_DEFAULT), errh_);
+    // Ignore errors thrown.
+    OCISessionPoolDestroy( spoolh_, errh_, OCI_DEFAULT);
     poolName_ = NULL;
   }
   
   if (spoolh_)
   {
-    OCIHandleFree ( errh_, OCI_HTYPE_SPOOL);
+    OCIHandleFree ( spoolh_, OCI_HTYPE_SPOOL);
     spoolh_ = NULL;
   }  
 

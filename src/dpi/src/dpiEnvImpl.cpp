@@ -100,8 +100,8 @@ try : envh_(NULL), poolMax_(kPoolMax), poolMin_(kPoolMin),
       isExternalAuth_(false),  stmtCacheSize_(kStmtCacheSize) 
 {
       
-  sword rc = OCIEnvCreate (&envh_, OCI_THREADED, NULL, NULL, NULL,
-                           NULL, 0, NULL);
+  sword rc = OCIEnvCreate (&envh_, OCI_THREADED | OCI_OBJECT, NULL, NULL,
+                           NULL, NULL, 0, NULL);
   if (rc)
   {
     if (envh_)
@@ -502,13 +502,13 @@ SPool * EnvImpl::createPool(const string &user, const string &password,
 
 Conn * EnvImpl::getConnection(const string &user, const string &password,
                               const string &connString,
-                              int stmtCacheSize)
+                              int stmtCacheSize, const string &connClass)
 {
   return (Conn *)new ConnImpl(this, envh_, isExternalAuth_,
                               (stmtCacheSize == -1) ? stmtCacheSize_ :
                                                       stmtCacheSize,
                               user, password,
-                              connString);
+                              connString, connClass);
 }
 
 

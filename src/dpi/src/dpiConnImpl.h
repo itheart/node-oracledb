@@ -66,10 +66,11 @@ class ConnImpl : public Conn
   ConnImpl(EnvImpl *env, OCIEnv *envh, bool isExternalAuth,
            unsigned int stmtCacheSize, 
            const string &user, const string &password,
-           const string &connString);
+           const string &connString,
+           const string &connClass);
 
   ConnImpl(PoolImpl *pool, OCIEnv *envh, bool isExternalAuth,
-           OraText *poolName, ub4 poolNameLen
+           OraText *poolName, ub4 poolNameLen, const string &connClass
            );
   
   virtual ~ConnImpl();
@@ -97,7 +98,20 @@ class ConnImpl : public Conn
   virtual void rollback();
   
   virtual void breakExecution();
-  
+
+  #if OCI_MAJOR_VERSION < 12
+    inline void hasTxn(boolean connHasTxn) 
+    {
+      // sets the flag used during connection release.
+      hasTxn_ = connHasTxn;
+    }
+    inline boolean hasTxn()
+    {
+      // returns flag to denote active transactions. 
+      return hasTxn_;
+    }
+  #endif  
+
 private:
   
   void cleanup();
@@ -111,6 +125,7 @@ private:
   OCIAuthInfo *auth_;           // OCI auth handle
   OCISvcCtx   *svch_;           // OCI service handle
   OCISession  *sessh_;          // OCI Session handle. Do not free this.
+  boolean     hasTxn_;          // set if transaction is in progress 
 };
 
 
